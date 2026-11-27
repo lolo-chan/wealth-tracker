@@ -59,7 +59,7 @@ export default function Home() {
   } | null>(null);
 
   const loadSnapshots = () => {
-    fetch("http://localhost:8000/snapshots")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/snapshots`)
       .then((res) => res.json())
       .then((data) => {
         setSnapshots(data);
@@ -67,6 +67,41 @@ export default function Home() {
       })
       .catch(() => setLoading(false));
   };
+
+  const fillVoo = async () => {
+    try {
+      const [vooRes, rateRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/price/voo`),
+        fetch("https://api.frankfurter.dev/v2/rate/USD/INR"),
+      ]);
+      const vooData = await vooRes.json();
+      const rateData = await rateRes.json();
+      const inrValue = (vooData.units * vooData.price_usd * rateData.rate).toFixed(2);
+      setBalances((prev) => ({ ...prev, "US Market": inrValue }));
+    } catch {
+      showMessage("error", "Could not fetch VOO price");
+    }
+  };
+
+  const [previousBalances, setPreviousBalances] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!date || snapshots.length === 0) return;
+    const prevDate = snapshots
+      .map((s) => s.snapshot_date)
+      .filter((d) => d < date)
+      .sort()
+      .pop();
+    if (!prevDate) return;
+
+    const prev: Record<string, string> = {};
+    snapshots
+      .filter((s) => s.snapshot_date === prevDate)
+      .forEach((s) => {
+        prev[s.asset_name] = s.balance;
+      });
+    setPreviousBalances(prev);
+  }, [date, snapshots]);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -83,8 +118,7 @@ export default function Home() {
 
   const handleBulk = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    let usdToInr = 84;
+    let usdToInr = 92;
     try {
       const rateRes = await fetch("https://api.frankfurter.dev/v2/rate/USD/INR");
       const rateData = await rateRes.json();
@@ -95,19 +129,16 @@ export default function Home() {
 
     const payloads = ASSETS.map((asset) => {
       let value = balances[asset] || "0";
-      if (asset === "US Market" && Number(value) > 0) {
-        value = (Number(value) * usdToInr).toFixed(2);
-      }
       return {
         snapshot_date: date,
         asset_name: asset,
         balance: value,
       };
-    }).filter((p) => Number(p.balance) > 0);
+    }).filter((p) => Number(p.balance) > 0 || p.asset_name === "US Market");
 
     if (payloads.length === 0) return;
 
-    const res = await fetch("http://localhost:8000/snapshots/bulk", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/snapshots/bulk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payloads),
@@ -128,7 +159,7 @@ export default function Home() {
       type: "confirm",
       text: "Delete this snapshot?",
       onConfirm: async () => {
-        const res = await fetch(`http://localhost:8000/snapshots/${id}`, { method: "DELETE" });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/snapshots/${id}`, { method: "DELETE" });
         if (res.ok) loadSnapshots();
         setMessage(null);
       },
@@ -142,7 +173,7 @@ export default function Home() {
       onConfirm: async () => {
         const items = snapshots.filter((s) => s.snapshot_date === dateStr);
         for (const item of items) {
-          await fetch(`http://localhost:8000/snapshots/${item.id}`, { method: "DELETE" });
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/snapshots/${item.id}`, { method: "DELETE" });
         }
         loadSnapshots();
         setMessage(null);
@@ -156,7 +187,7 @@ export default function Home() {
   };
 
   const saveEdit = async (id: number) => {
-    const res = await fetch(`http://localhost:8000/snapshots/${id}`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/snapshots/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ balance: editBalance }),
@@ -187,7 +218,7 @@ export default function Home() {
   if (loading) return <p className="p-8">Loading...</p>;
 
   return (
-    <main className="p-8 max-w-2xl mx-auto">
+    <main className="p-8 mx-auto" style={{ maxWidth: "1200px", width: "70%" }}>
       <h1 className="text-2xl font-bold mb-4">Wealth Tracker</h1>
 
       <div className="flex gap-4 mb-6 border-b">
@@ -241,39 +272,41 @@ export default function Home() {
       {tab === "overview" && (
         <>
           {latestDate && (
-            <div className="mb-6 p-4 border rounded bg-gray-50 flex justify-between items-center">
-              <div>
-                <div className="text-sm text-gray-600">Net worth as of {formatDate(latestDate)}</div>
-                <div className="text-3xl font-semibold mt-1">
+            <div className="mb-6 p-5 bg-[#282829] border border-[#555558] rounded-xl">
+              <div className="text-sm text-gray-400">Net worth as of {formatDate(latestDate)}</div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <div className="text-3xl font-semibold tracking-tight text-white">
                   {formatINR(latestTotal)}
-                  <span
-                    className={`ml-3 text-lg font-normal ${
+                </div>
+                <div className="text-right">
+                  <button
+                    onClick={() => setShowPercent((p) => !p)}
+                    className="text-xs text-gray-400 hover:text-gray-200 mb-1"
+                  >
+                    Change ({showPercent ? "%" : "₹"})
+                  </button>
+                  <div
+                    className={`text-lg font-medium ${
                       (showPercent ? changePercent : change) > 0
-                        ? "text-green-600"
+                        ? "text-green-400"
                         : (showPercent ? changePercent : change) < 0
-                        ? "text-red-600"
-                        : "text-gray-500"
+                        ? "text-red-400"
+                        : "text-gray-400"
                     }`}
                   >
-                    ({showPercent
+                    {showPercent
                       ? `${changePercent > 0 ? "+" : ""}${changePercent.toFixed(1)}%`
-                      : `${change > 0 ? "+" : ""}${formatINR(change)}`})
-                  </span>
+                      : `${change > 0 ? "+" : ""}${formatINR(change)}`}
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowPercent((p) => !p)}
-                className="text-sm text-gray-600 hover:text-black underline"
-              >
-                Change ({showPercent ? "%" : "₹"})
-              </button>
             </div>
           )}
 
           <div className="mb-8">
             <button
               onClick={() => setShowForm((s) => !s)}
-              className="text-sm text-gray-600 underline mb-2"
+              className="text-sm font-medium text-gray-300 hover:text-white underline-offset-2 hover:underline mb-3"
             >
               {showForm ? "Hide form" : "Add snapshot"}
             </button>
@@ -306,10 +339,25 @@ export default function Home() {
                       }
                       className="border p-2 flex-1 rounded"
                     />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBalances((prev) => ({
+                          ...prev,
+                          [asset]: previousBalances[asset] || "",
+                        }))
+                      }
+                      className="text-xs font-medium text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100"
+                    >
+                      Prev
+                    </button>
                   </div>
                 ))}
 
-                <button type="submit" className="bg-black text-white px-4 py-2 rounded mt-2">
+                <button
+                  type="submit"
+                  className="bg-black text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-gray-800 transition"
+                >
                   Save All
                 </button>
               </form>
@@ -336,14 +384,14 @@ export default function Home() {
                     <div className="flex items-center">
                       <button
                         onClick={() => setExpandedDate(isOpen ? null : d)}
-                        className="flex-1 p-3 flex justify-between items-center text-left"
+                        className="flex-1 p-3 flex justify-between items-center text-left gap-6"
                       >
                         <span className="font-medium">{formatDate(d)}</span>
                         <span className="font-mono">{formatINR(group.total)}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteDate(d)}
-                        className="pr-3 text-red-600 text-sm"
+                        className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
                       >
                         Delete date
                       </button>

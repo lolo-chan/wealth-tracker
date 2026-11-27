@@ -21,20 +21,23 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/wealthtracker
+      CORS_ORIGINS: http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - .:/app
 
   frontend:
-    build: ./wealth-tracker-frontend
+    build:
+      context: ./wealth-tracker-frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
-    depends_on:
-      - api
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

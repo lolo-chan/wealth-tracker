@@ -1,9 +1,9 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/wealthtracker"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    class Config:
-        env_file = ".env"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/wealthtracker"
+    voo_units: float = 0.430844
 
 settings = Settings()

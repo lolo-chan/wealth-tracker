@@ -1,1 +1,6 @@
 .env
+.env.local
+old-data.csv
+import_old_data.py
+backup_snapshots.py
+backup*.csv

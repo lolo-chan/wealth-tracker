@@ -12,6 +12,11 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from . import models
 from fastapi.middleware.cors import CORSMiddleware
+import os
+import httpx
+from .config import settings
+
+origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
 
 class SnapshotCreate(BaseModel):
@@ -23,13 +28,33 @@ class SnapshotCreate(BaseModel):
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Wealth Tracker API")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def get_voo_inr_value():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    async with httpx.AsyncClient(headers=headers, timeout=10) as client:
+        # VOO price
+        r = await client.get("https://query1.finance.yahoo.com/v8/finance/chart/VOO?range=1d&interval=1d")
+        r.raise_for_status()
+        price = r.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
+
+        # USD→INR
+        rate_r = await client.get("https://api.frankfurter.dev/v2/rate/USD/INR")
+        rate = rate_r.json()["rate"]
+
+    fixed_inr = settings.voo_units * price * rate
+    return fixed_inr, rate
+
 
 
 @app.get("/")
@@ -91,13 +116,22 @@ def list_snapshots(
 
 
 @app.post("/snapshots/bulk")
-def create_snapshots_bulk(payloads: List[SnapshotCreate], db: Session = Depends(get_db)):
+async def create_snapshots_bulk(payloads: List[SnapshotCreate], db: Session = Depends(get_db)):
+    fixed_inr, rate = await get_voo_inr_value()
+
     snapshots = []
     for payload in payloads:
+        balance = payload.balance
+        if payload.asset_name == "US Market":
+            groww_usd = float(payload.balance)
+            groww_inr = groww_usd * rate
+
+            balance = Decimal(str(round(fixed_inr + groww_inr, 2)))
+
         snapshot = models.Snapshot(
             snapshot_date=payload.snapshot_date,
             asset_name=payload.asset_name,
-            balance=payload.balance,
+            balance=balance,
         )
         db.add(snapshot)
         snapshots.append(snapshot)
@@ -177,3 +211,21 @@ def delete_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
     db.delete(snapshot)
     db.commit()
     return {"message": "Snapshot deleted"}
+
+
+@app.get("/price/voo")
+async def get_voo_price():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    async with httpx.AsyncClient(headers=headers, timeout=10) as client:
+        r = await client.get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/VOO?range=1d&interval=1d"
+        )
+        r.raise_for_status()
+        data = r.json()
+        price = data["chart"]["result"][0]["meta"]["regularMarketPrice"]
+    return {
+        "price_usd": price,
+        "units": settings.voo_units,
+    }
