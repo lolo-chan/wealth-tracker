@@ -254,9 +254,9 @@ export default function Home() {
   if (loading) return <p className="p-8">Loading...</p>;
 
   return (
-    <main className="p-4 sm:p-8 max-w-4xl mx-auto w-full" style={{ maxWidth: "1200px", width: "70%" }}>
+    <main className="p-4 sm:p-8 max-w-4xl mx-auto w-full" style={{ maxWidth: "1000px", width: "85%" }}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Wealth Tracker</h1>
+        <h1 className="text-4xl font-bold">Wealth Tracker</h1>
         <button
           onClick={() => setShowUSD((s) => !s)}
           className="flex items-center gap-2 text-sm bg-[#282829] hover:bg-[#282829] border border-gray-600 px-3 py-1.5 rounded-full transition"
