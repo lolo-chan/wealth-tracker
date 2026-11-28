@@ -253,7 +253,7 @@ export default function Home() {
   if (loading) return <p className="p-8">Loading...</p>;
 
   return (
-    <main className="p-8 mx-auto" style={{ maxWidth: "1200px", width: "70%" }}>
+    <main className="p-4 sm:p-8 max-w-4xl mx-auto w-full" style={{ maxWidth: "1200px", width: "70%" }}>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Wealth Tracker</h1>
         <button
@@ -319,7 +319,7 @@ export default function Home() {
           {latestDate && (
             <div className="mb-6 p-5 border border-[#555558] rounded-xl">
               <div className="text-sm text-gray-400">Net worth as of {formatDate(latestDate)}</div>
-              <div className="mt-1 flex items-baseline justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div className="text-3xl font-semibold tracking-tight text-white">
                   {formatMoney(latestTotal)}
                 </div>
@@ -370,8 +370,8 @@ export default function Home() {
                 </div>
 
                 {ASSETS.map((asset) => (
-                  <div key={asset} className="flex items-center gap-3">
-                    <label className="w-28 text-sm">
+                  <div key={asset} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label className="w-full sm:w-32">
                       {asset === "US Market" ? "US Market ($)" : asset}
                     </label>
                     <input
@@ -414,7 +414,7 @@ export default function Home() {
               {/* Line chart - Net worth over time */}
               <div className="border border-[#555558] rounded-xl p-4">
                 <h2 className="text-lg font-medium mb-4">Net Worth</h2>
-                <ResponsiveContainer width="100%" height={350}>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart
                     data={sortedDates
                       .slice()
@@ -491,7 +491,7 @@ export default function Home() {
               {/* Pie chart - Latest allocation */}
               <div className="border border-[#555558] rounded-xl p-4">
                 <h2 className="text-lg font-medium mb-4">Current Allocation</h2>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={byDate[latestDate].items.map((s) => ({
