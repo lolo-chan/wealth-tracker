@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
+  Legend,
   Cell,
 } from "recharts";
 
@@ -409,12 +410,30 @@ export default function Home() {
             )}
           </div>
 
+          <style>{`
+            .chart-scroll::-webkit-scrollbar {
+              height: 6px;
+            }
+            .chart-scroll::-webkit-scrollbar-track {
+              background: #1f2937;
+              border-radius: 3px;
+            }
+            .chart-scroll::-webkit-scrollbar-thumb {
+              background: #4b5563;
+              border-radius: 3px;
+            }
+            .chart-scroll::-webkit-scrollbar-thumb:hover {
+              background: #6b7280;
+            }
+          `}</style>
+
           {sortedDates.length > 0 && (
             <div className="space-y-8">
               {/* Line chart - Net worth over time */}
-              <div className="border border-[#555558] rounded-xl p-4">
+              <div className="border border-[#555558] rounded-xl p-4 overflow-x-auto chart-scroll">
                 <h2 className="text-lg font-medium mb-4">Net Worth</h2>
-                <ResponsiveContainer width="100%" height={250}>
+                  <div style={{ minWidth: "600px", height: 350 }}>
+                <ResponsiveContainer width="100%" height={350}>
                   <LineChart
                     data={sortedDates
                       .slice()
@@ -486,6 +505,7 @@ export default function Home() {
                   <Line type="monotone" dataKey="total" stroke="#ffffff" strokeWidth={2.5} dot={false} name="Total" />
                   </LineChart>
                 </ResponsiveContainer>
+                </div>
               </div>
 
               {/* Pie chart - Latest allocation */}
@@ -502,8 +522,8 @@ export default function Home() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={100}
-                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(1)}%`}
+                      outerRadius={window.innerWidth > 640 ? 100 : 80}
+                      // label={window.innerWidth > 640}
                     >
                       {byDate[latestDate].items.map((_, i) => (
                         <Cell key={i} fill={["#3b82f6", "#ef4444", "#eab308", "#22c55e", "#f97316", "#06b6d4"][i % 6]} />
@@ -519,6 +539,9 @@ export default function Home() {
                           if (b.dataKey === "total") return -1;
                           return 0;
                         });
+                        const entry = payload[0];
+                        const total = byDate[latestDate].total;
+                        const percent = ((Number(entry.value) / total) * 100).toFixed(1);
 
                         return (
                           <div
@@ -541,14 +564,28 @@ export default function Home() {
                                 }}
                               >
                                 {entry.name}: {formatMoney(Number(entry.value))}
+                                <div style={{ color: "#9ca3af", fontSize: "0.875rem" }}>{percent}%</div>
                               </div>
+                              
                             ))}
                           </div>
                         );
                       }}
                     />
+
                   </PieChart>
                 </ResponsiveContainer>
+                    <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-4 text-sm">
+                      {byDate[latestDate].items.map((s, i) => (
+                        <div key={s.asset_name} className="flex items-center gap-1.5">
+                          <div
+                            className="w-3 h-3 rounded-sm"
+                            style={{ backgroundColor: ["#3b82f6", "#ef4444", "#eab308", "#22c55e", "#f97316", "#06b6d4"][i % 6] }}
+                          />
+                          <span className="text-gray-300">{s.asset_name}</span>
+                        </div>
+                      ))}
+                    </div>
               </div>
               
               {/* Asset table */}
