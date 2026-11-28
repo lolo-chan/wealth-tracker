@@ -1,6 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 type Snapshot = {
   id: number;
@@ -35,6 +47,7 @@ function formatINR(n: number) {
   }).format(n);
 }
 
+
 export default function Home() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +64,28 @@ export default function Home() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBalance, setEditBalance] = useState("");
   const [showPercent, setShowPercent] = useState(false);
+
+  const [showUSD, setShowUSD] = useState(false);
+  const [usdToInr, setUsdToInr] = useState(83);
+
+  function formatMoney(n: number) {
+    if (showUSD) {
+      const usd = n / usdToInr;
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(usd);
+    }
+    return formatINR(n);
+  }
+
+  useEffect(() => {
+    fetch("https://api.frankfurter.dev/v2/rate/USD/INR")
+      .then((r) => r.json())
+      .then((d) => setUsdToInr(d.rate))
+      .catch(() => {});
+  }, []);
 
   const [message, setMessage] = useState<{
     type: "error" | "success" | "confirm";
@@ -219,7 +254,17 @@ export default function Home() {
 
   return (
     <main className="p-8 mx-auto" style={{ maxWidth: "1200px", width: "70%" }}>
-      <h1 className="text-2xl font-bold mb-4">Wealth Tracker</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Wealth Tracker</h1>
+        <button
+          onClick={() => setShowUSD((s) => !s)}
+          className="flex items-center gap-2 text-sm bg-[#282829] hover:bg-[#282829] border border-gray-600 px-3 py-1.5 rounded-full transition"
+        >
+          <span className={showUSD ? "text-gray-400" : "text-white font-medium"}>₹</span>
+          <span className="text-gray-500">/</span>
+          <span className={showUSD ? "text-white font-medium" : "text-gray-400"}>$</span>
+        </button>
+      </div>
 
       <div className="flex gap-4 mb-6 border-b">
         <button
@@ -272,11 +317,11 @@ export default function Home() {
       {tab === "overview" && (
         <>
           {latestDate && (
-            <div className="mb-6 p-5 bg-[#282829] border border-[#555558] rounded-xl">
+            <div className="mb-6 p-5 border border-[#555558] rounded-xl">
               <div className="text-sm text-gray-400">Net worth as of {formatDate(latestDate)}</div>
               <div className="mt-1 flex items-baseline justify-between">
                 <div className="text-3xl font-semibold tracking-tight text-white">
-                  {formatINR(latestTotal)}
+                  {formatMoney(latestTotal)}
                 </div>
                 <div className="text-right">
                   <button
@@ -296,7 +341,7 @@ export default function Home() {
                   >
                     {showPercent
                       ? `${changePercent > 0 ? "+" : ""}${changePercent.toFixed(1)}%`
-                      : `${change > 0 ? "+" : ""}${formatINR(change)}`}
+                      : `${change > 0 ? "+" : ""}${formatMoney(change)}`}
                   </div>
                 </div>
               </div>
@@ -364,9 +409,176 @@ export default function Home() {
             )}
           </div>
 
-          <div className="border border-dashed rounded p-8 text-center text-gray-400">
-            Graphs and visuals will go here
-          </div>
+          {sortedDates.length > 0 && (
+            <div className="space-y-8">
+              {/* Line chart - Net worth over time */}
+              <div className="border border-[#555558] rounded-xl p-4">
+                <h2 className="text-lg font-medium mb-4">Net Worth</h2>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart
+                    data={sortedDates
+                      .slice()
+                      .reverse()
+                      .map((d) => {
+                        const point: Record<string, any> = {
+                          date: formatDate(d).split(" ").slice(0, 2).join(" "),
+                          total: byDate[d].total,
+                        };
+                        byDate[d].items.forEach((s) => {
+                          point[s.asset_name] = Number(s.balance);
+                        });
+                        return point;
+                      })}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="date" stroke="#888" />
+                    <YAxis
+                      stroke="#888"
+                      tickFormatter={(v) => formatMoney(v)}
+                      width={80}
+                      domain={["auto", "auto"]}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+
+                        // Sort so Total is last
+                        const sorted = [...payload].sort((a, b) => {
+                          if (a.dataKey === "total") return 1;
+                          if (b.dataKey === "total") return -1;
+                          return 0;
+                        });
+
+                        return (
+                          <div
+                            style={{
+                              backgroundColor: "#282829",
+                              border: "1px solid #555558",
+                              borderRadius: "8px",
+                              padding: "10px 12px",
+                              color: "#f3f4f6",
+                            }}
+                          >
+                            <div style={{ color: "#9ca3af", marginBottom: 6, fontWeight: 500 }}>{label}</div>
+                            {sorted.map((entry) => (
+                              <div
+                                key={String(entry.dataKey)}
+                                style={{
+                                  padding: "2px 0",
+                                  fontWeight: entry.dataKey === "total" ? 600 : 400,
+                                  color: entry.dataKey === "total" ? "#ffffff" : "#e5e7eb",
+                                }}
+                              >
+                                {entry.name}: {formatMoney(Number(entry.value))}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                  <Line type="monotone" dataKey="HDFC" stroke="#3b82f6" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="IDFC" stroke="#ef4444" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="MF" stroke="#eab308" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="Stocks" stroke="#22c55e" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="US Market" stroke="#f97316" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="EPFO" stroke="#06b6d4" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="total" stroke="#ffffff" strokeWidth={2.5} dot={false} name="Total" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Pie chart - Latest allocation */}
+              <div className="border border-[#555558] rounded-xl p-4">
+                <h2 className="text-lg font-medium mb-4">Current Allocation</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={byDate[latestDate].items.map((s) => ({
+                        name: s.asset_name,
+                        value: Number(s.balance),
+                      }))}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(1)}%`}
+                    >
+                      {byDate[latestDate].items.map((_, i) => (
+                        <Cell key={i} fill={["#3b82f6", "#ef4444", "#eab308", "#22c55e", "#f97316", "#06b6d4"][i % 6]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+
+                        // Sort so Total is last
+                        const sorted = [...payload].sort((a, b) => {
+                          if (a.dataKey === "total") return 1;
+                          if (b.dataKey === "total") return -1;
+                          return 0;
+                        });
+
+                        return (
+                          <div
+                            style={{
+                              backgroundColor: "#282829",
+                              border: "1px solid #555558",
+                              borderRadius: "8px",
+                              padding: "10px 12px",
+                              color: "#f3f4f6",
+                            }}
+                          >
+                            <div style={{ color: "#9ca3af", marginBottom: 6, fontWeight: 500 }}>{label}</div>
+                            {sorted.map((entry) => (
+                              <div
+                                key={String(entry.dataKey)}
+                                style={{
+                                  padding: "2px 0",
+                                  fontWeight: entry.dataKey === "total" ? 600 : 400,
+                                  color: entry.dataKey === "total" ? "#ffffff" : "#e5e7eb",
+                                }}
+                              >
+                                {entry.name}: {formatMoney(Number(entry.value))}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Asset table */}
+              {latestDate && (
+                <div className="border border-[#555558] rounded-xl p-4">
+                  <h2 className="text-lg font-medium mb-4">Asset Breakdown</h2>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-400 border-b border-[#555558]">
+                        <th className="pb-2 font-medium">Asset</th>
+                        <th className="pb-2 font-medium text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byDate[latestDate].items.map((s) => (
+                        <tr key={s.asset_name} className="border-b border-[#555558]">
+                          <td className="py-2">{s.asset_name}</td>
+                          <td className="py-2 text-right font-mono">{formatMoney(Number(s.balance))}</td>
+                        </tr>
+                      ))}
+                      <tr className="font-semibold">
+                        <td className="pt-3">Total</td>
+                        <td className="pt-3 text-right font-mono">{formatMoney(byDate[latestDate].total)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -387,7 +599,7 @@ export default function Home() {
                         className="flex-1 p-3 flex justify-between items-center text-left gap-6"
                       >
                         <span className="font-medium">{formatDate(d)}</span>
-                        <span className="font-mono">{formatINR(group.total)}</span>
+                        <span className="font-mono">{formatMoney(group.total)}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteDate(d)}
@@ -421,7 +633,7 @@ export default function Home() {
                                 </>
                               ) : (
                                 <>
-                                  <span className="font-mono">{formatINR(Number(s.balance))}</span>
+                                  <span className="font-mono">{formatMoney(Number(s.balance))}</span>
                                   <button onClick={() => startEdit(s)} className="text-blue-600 text-xs">
                                     Edit
                                   </button>
