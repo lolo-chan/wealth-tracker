@@ -49,6 +49,7 @@ function formatINR(n: number) {
 }
 
 
+
 export default function Home() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +67,8 @@ export default function Home() {
   const [editBalance, setEditBalance] = useState("");
   const [showPercent, setShowPercent] = useState(false);
 
+  const [hideValues, setHideValues] = useState(false);
+
   const [showUSD, setShowUSD] = useState(false);
   const [usdToInr, setUsdToInr] = useState(83);
 
@@ -79,6 +82,11 @@ export default function Home() {
       }).format(usd);
     }
     return formatINR(n);
+  }
+
+  function Blurred({ children }: { children: React.ReactNode }) {
+    if (!hideValues) return <>{children}</>;
+    return <span className="blur-sm select-none">{children}</span>;
   }
 
   useEffect(() => {
@@ -254,17 +262,38 @@ export default function Home() {
   if (loading) return <p className="p-8">Loading...</p>;
 
   return (
-    <main className="p-4 sm:p-8 max-w-4xl mx-auto w-full" style={{ maxWidth: "1000px", width: "85%" }}>
+    <main className="p-4 sm:p-8 max-w-4xl mx-auto w-full" style={{ maxWidth: "1000px", width: "95%" }}>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-4xl font-bold">Wealth Tracker</h1>
-        <button
-          onClick={() => setShowUSD((s) => !s)}
-          className="flex items-center gap-2 text-sm bg-[#282829] hover:bg-[#282829] border border-gray-600 px-3 py-1.5 rounded-full transition"
-        >
-          <span className={showUSD ? "text-gray-400" : "text-white font-medium"}>₹</span>
-          <span className="text-gray-500">/</span>
-          <span className={showUSD ? "text-white font-medium" : "text-gray-400"}>$</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setHideValues((h) => !h)}
+            className="p-2 text-gray-300 hover:text-white border border-gray-600 rounded-full"
+            title={hideValues ? "Show values" : "Hide values"}
+          >
+            {hideValues ? (
+              // Eye with slash
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              // Normal eye
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={() => setShowUSD((s) => !s)}
+            className="flex items-center gap-2 text-sm  border border-gray-600 px-3 py-1.5 rounded-full transition"
+          >
+            <span className={showUSD ? "text-gray-400" : "text-white font-medium"} title={showUSD ? "Show in INR" : ""}>₹</span>
+            <span className="text-gray-500">/</span>
+            <span className={showUSD ? "text-white font-medium" : "text-gray-400"} title={!showUSD ? "Show in USD" : ""}>$</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-4 mb-6 border-b">
@@ -322,7 +351,7 @@ export default function Home() {
               <div className="text-sm text-gray-400">Net worth as of {formatDate(latestDate)}</div>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <div className="text-3xl font-semibold tracking-tight text-white">
-                  {formatMoney(latestTotal)}
+                  <Blurred>{formatMoney(latestTotal)}</Blurred>
                 </div>
                 <div className="text-right">
                   <button
@@ -342,7 +371,7 @@ export default function Home() {
                   >
                     {showPercent
                       ? `${changePercent > 0 ? "+" : ""}${changePercent.toFixed(1)}%`
-                      : `${change > 0 ? "+" : ""}${formatMoney(change)}`}
+                      : <Blurred>{`${change > 0 ? "+" : ""}${formatMoney(change)}`}</Blurred>}
                   </div>
                 </div>
               </div>
@@ -453,6 +482,7 @@ export default function Home() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="date" stroke="#888" />
                     <YAxis
+                      hide={hideValues}
                       stroke="#888"
                       tickFormatter={(v) => formatMoney(v)}
                       width={80}
@@ -479,8 +509,9 @@ export default function Home() {
                               color: "#f3f4f6",
                             }}
                           >
-                            <div style={{ color: "#9ca3af", marginBottom: 6, fontWeight: 500 }}>{label}</div>
-                            {sorted.map((entry) => (
+                            {hideValues && <div style={{ color: "#9ca3af", marginBottom: 0, fontWeight: 500 }}>{label}</div>}
+                            {!hideValues && <div style={{ color: "#9ca3af", marginBottom: 6, fontWeight: 500 }}>{label}</div>}
+                             {!hideValues && sorted.map((entry) => (
                               <div
                                 key={String(entry.dataKey)}
                                 style={{
@@ -489,7 +520,7 @@ export default function Home() {
                                   color: entry.dataKey === "total" ? "#ffffff" : "#e5e7eb",
                                 }}
                               >
-                                {entry.name}: {formatMoney(Number(entry.value))}
+                                {entry.name}: <Blurred>{formatMoney(Number(entry.value))}</Blurred>
                               </div>
                             ))}
                           </div>
@@ -563,8 +594,8 @@ export default function Home() {
                                   color: entry.dataKey === "total" ? "#ffffff" : "#e5e7eb",
                                 }}
                               >
-                                {entry.name}: {formatMoney(Number(entry.value))}
-                                <div style={{ color: "#9ca3af", fontSize: "0.875rem" }}>{percent}%</div>
+                                {!hideValues && <div>{formatMoney(Number(entry.value))}</div>}
+                                <div style={{ color: "#9ca3af" }}>{percent}%</div>
                               </div>
                               
                             ))}
@@ -603,12 +634,12 @@ export default function Home() {
                       {byDate[latestDate].items.map((s) => (
                         <tr key={s.asset_name} className="border-b border-[#555558]">
                           <td className="py-2">{s.asset_name}</td>
-                          <td className="py-2 text-right font-mono">{formatMoney(Number(s.balance))}</td>
+                          <td className="py-2 text-right font-mono"><Blurred>{formatMoney(Number(s.balance))}</Blurred></td>
                         </tr>
                       ))}
                       <tr className="font-semibold">
                         <td className="pt-3">Total</td>
-                        <td className="pt-3 text-right font-mono">{formatMoney(byDate[latestDate].total)}</td>
+                        <td className="pt-3 text-right font-mono"><Blurred>{formatMoney(byDate[latestDate].total)}</Blurred></td>
                       </tr>
                     </tbody>
                   </table>
@@ -636,7 +667,7 @@ export default function Home() {
                         className="flex-1 p-3 flex justify-between items-center text-left gap-6"
                       >
                         <span className="font-medium">{formatDate(d)}</span>
-                        <span className="font-mono">{formatMoney(group.total)}</span>
+                        <span className="font-mono"><Blurred>{formatMoney(group.total)}</Blurred></span>
                       </button>
                       <button
                         onClick={() => handleDeleteDate(d)}
@@ -670,7 +701,7 @@ export default function Home() {
                                 </>
                               ) : (
                                 <>
-                                  <span className="font-mono">{formatMoney(Number(s.balance))}</span>
+                                  <span className="font-mono"><Blurred>{formatMoney(Number(s.balance))}</Blurred></span>
                                   <button onClick={() => startEdit(s)} className="text-blue-600 text-xs">
                                     Edit
                                   </button>
